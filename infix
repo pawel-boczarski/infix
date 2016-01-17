@@ -1,0 +1,60 @@
+1!a         // set a to 1
+a?          // returns a
+
+a?>        // prints value of a
+
+10>        // prints 10
+
+a?b        // if a nonzero, b
+
+a?(a>)     // if a nonzero , print a
+
+
+
+Syntax
+
+a b     => if a is nonzero, then evaluate b
+a.b 	=> concatenate a and b
+a=b 	=> evaluate to a, if a == b
+a,b     => evaluate a, then b
+a?      => get value of a
+a!b     => set b to value of a, returns b
+
+INVARIANT 1
+	a!b,b?
+
+will always have value of a
+
+a?b      => while a, evaluate b
+
+Note. 
+Let a be variable.
+
+Then
+a?b
+will evaluate to
+[value of a] b,
+
+so it's an 'if'.
+
+When a is a constant, this makes an infinite loop for any nonzero value!
+
+To make an infinite loop with variable a, you must do
+
+a??b - while value of a is nonzero, evaluate b
+
+a! - output a
+!a - input a
+
+
+!?a - do a while input nonzero
+
+==========================
+ECHO PROGRAM
+
+(!a)?(a!)
+
+
+! - store first operand to second operand
+
+
