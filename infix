@@ -58,3 +58,10 @@ ECHO PROGRAM
 ! - store first operand to second operand
 
 
+
+
+
+-----------
+a??b is short for (a?)?b
+
+
