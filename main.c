@@ -189,11 +189,16 @@ char *evaluate(char *command, int start, int len)
 		{
 			if(token_lengths[1]==1 && command[token_starts[1]] == '!')
 			{
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+				int len = strlen(le);
+			
 				setvar(command, token_starts[2], token_lengths[2],
-				       command, token_starts[0], token_lengths[0]);
-				       
-				ret = malloc(1+token_lengths[0]);
-				memcpy(ret, command+token_starts[0], token_lengths[0]);
+				       le, 0, len);
+				
+				free(le);
+				
+				ret = malloc(1+len);
+				memcpy(ret, le, len);
 				ret[token_lengths[0]] = '\0';
 			}
 			else
@@ -228,6 +233,25 @@ char *evaluate(char *command, int start, int len)
 				free(le);
 				
 				ret = evaluate(command, token_starts[2], token_lengths[2]);
+			}
+			else
+			if(token_lengths[1]==1 && command[token_starts[1]] == '[')
+			{
+			}
+			else
+			if(token_lengths[1]==1 && command[token_starts[1]] == '.')
+			{
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+				char *re = evaluate(command, token_starts[2], token_lengths[2]);
+			
+				int len1 = strlen(le), len2 = strlen(re);
+				ret = malloc(1+len1+len2);
+				memcpy(ret, le, len1);
+				memcpy(ret+len1, re, len2);
+				ret[len1+len2] = '\0';
+				
+				free(le);
+				free(re);
 			}
 		}
 		break;
