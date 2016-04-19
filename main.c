@@ -144,6 +144,42 @@ void debug_tokens(char *command, int no_tokens, int *token_starts, int *token_le
 	}
 }
 
+int operator_shibboleth(char *command, int start, int len)
+{
+	if(!isalpha(command[start]) && !isdigit(command[start]) && command[start] != '(') return 1;
+	return 0;
+}
+
+int operator_priority(char *command, int no_tokens, int *token_starts, int *token_lengths, int **oper_prio)
+{
+	*oper_prio = calloc(sizeof(int), no_tokens);
+	
+	// pre: first token is not operator!
+	for(int i = 0; i < no_tokens; i++)
+	{
+		if(!operator_shibboleth(command, token_starts[i], token_lengths[i]))
+			(*oper_prio)[i] = 1e9;
+		else
+		{
+			if(command[token_starts[i]] == '?')
+				(*oper_prio)[i] = 1;
+			else if(command[token_starts[i]] == '!')
+				(*oper_prio)[i] = 2;
+			else if(command[token_starts[i]] == '.')
+				(*oper_prio)[i] = 3;
+			else if(command[token_starts[i]] == '[' || command[token_starts[i]] == ']')
+				(*oper_prio)[i] = 4;
+				
+			if(operator_shibboleth(command, token_starts[i-1], token_lengths[i-1]))
+			{
+				(*oper_prio)[i-1] += 1000; // last was one-argument op
+			}
+			
+			if(i == no_tokens-1) (*oper_prio)[i] = 1000; // one-argument op	
+		}
+	}
+}
+
 char *evaluate(char *command, int start, int len)
 {
 	int no_tokens, *token_starts, *token_lengths;
@@ -151,6 +187,62 @@ char *evaluate(char *command, int start, int len)
 	printf("evaluate(%d, %d)\n", start, len);
 	parse(command, start, len, &no_tokens, &token_starts, &token_lengths);
 	debug_tokens(command, no_tokens, token_starts, token_lengths);
+		
+	if(no_tokens > 3 || no_tokens == 3 && operator_shibboleth(command, token_starts[2], token_lengths[2]))
+	{
+		int *oper_prio = NULL;
+		operator_priority(command, no_tokens, token_starts, token_lengths, &oper_prio);
+		// let's find biggest prio
+		int minprio = 1e9, minprio_index = -1;
+		for(int i = 0; i < no_tokens; i++)
+			if(oper_prio[i] < minprio)
+			{
+				minprio = oper_prio[i];
+				minprio_index = i;
+			}
+			// rejoin tokens;
+			
+		int *new_token_starts;
+		int *new_token_lengths;
+		if(minprio_index == no_tokens-1)
+		{
+				// two ops
+			no_tokens = 2;
+			new_token_starts = calloc(2, sizeof *new_token_starts);
+			new_token_lengths = calloc(2, sizeof *new_token_starts);
+				
+			new_token_starts[0] = token_starts[0];
+			new_token_lengths[0] = token_starts[minprio_index] - token_starts[0];
+
+			new_token_starts[1] = token_starts[minprio_index];
+			new_token_lengths[1] = len - new_token_lengths[0];				
+		}
+		else
+		{
+			no_tokens = 3;
+			new_token_starts = calloc(3, sizeof *new_token_starts);
+			new_token_lengths = calloc(3, sizeof *new_token_starts);
+
+			new_token_starts[0] = token_starts[0];
+			new_token_lengths[0] = token_starts[minprio_index] - token_starts[0];
+
+			new_token_starts[1] = token_starts[minprio_index];
+			new_token_lengths[1] = token_lengths[minprio_index];				
+				
+			new_token_starts[2] = new_token_starts[1] + new_token_lengths[1];
+			new_token_lengths[2] = len - (new_token_lengths[0]+new_token_starts[1]);
+		}
+			
+		free(token_lengths);
+		free(token_starts);
+			
+		token_starts = new_token_starts;
+		token_lengths = new_token_lengths;
+	}
+
+	printf("AFTER MERGE\n");	
+		debug_tokens(command, no_tokens, token_starts, token_lengths);
+
 	
 	if(signal_requested)
 	{
@@ -160,9 +252,17 @@ char *evaluate(char *command, int start, int len)
 		return strdup("0");
 	}
 	
+back_after_join:
 	switch(no_tokens) {
+		
 		case 1:
 		{
+			// good: T
+			// bad:  *
+			if(operator_shibboleth(command, token_starts[0], token_lengths[0]))
+			{
+				printf("ERROR has occured => 1 arg * (operator only)!\n");
+			}
 			if(command[token_starts[0]] == '(' && command[token_starts[0]+token_lengths[0]-1] == ')')
 			{
 				printf("!!!!! %d %d !!!!!!\n", token_starts[0]+1, token_lengths[0]-2);
@@ -178,15 +278,59 @@ char *evaluate(char *command, int start, int len)
 		break;
 		case 2:
 		{
+			// good:
+			// T*
+			// bad:
+			// *x
+			// TT
+			if(operator_shibboleth(command, token_starts[0], token_lengths[0]))
+			{
+				printf("ERROR has occured => 2 arg *T or ** (operator first) !\n");
+				ret = strdup("");
+				signal_requested = 1;
+				break;
+			}
+			if(!operator_shibboleth(command, token_starts[1], token_lengths[1]))
+			{
+				printf("ERROR has occured => 2 arg TT (no operator) !\n");
+				ret = strdup("");
+				signal_requested = 1;
+				break;				
+			}
+			
+			// T*
 			if(token_lengths[1]==1 && command[token_starts[1]] == '?')
 			{
-				char *r = getvar(command, token_starts[0], token_lengths[0]);
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+				char *r = getvar(le, 0, strlen(le));
 				if(r) ret = strdup(r);
+				free(le);
 			}
+			else
+			{}
+			
 		}
 		break;
+		// good:
+		// T*T
+		// T**
+		// bad:
+		// *xx
+		// TTx
 		case 3:
 		{
+			if(operator_shibboleth(command, token_starts[0], token_lengths[0]))
+			{
+				printf("ERROR has occured => 3 arg *xx (operator first) !\n");
+				signal_requested = 1;
+				break;
+			}
+			else if(!operator_shibboleth(command, token_starts[1], token_lengths[1]))
+			{
+				printf("ERROR has occured => 3 arg TTx (second is not operator) !\n");
+				signal_requested = 1;
+				break;
+			}
 			if(token_lengths[1]==1 && command[token_starts[1]] == '!')
 			{
 				char *le = evaluate(command, token_starts[0], token_lengths[0]);
@@ -195,11 +339,10 @@ char *evaluate(char *command, int start, int len)
 				setvar(command, token_starts[2], token_lengths[2],
 				       le, 0, len);
 				
-				free(le);
-				
 				ret = malloc(1+len);
 				memcpy(ret, le, len);
 				ret[token_lengths[0]] = '\0';
+				free(le);
 			}
 			else
 			if(token_lengths[1]==1 && command[token_starts[1]] == '?')
@@ -237,6 +380,13 @@ char *evaluate(char *command, int start, int len)
 			else
 			if(token_lengths[1]==1 && command[token_starts[1]] == '[')
 			{
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+				char *re = evaluate(command, token_starts[2], token_lengths[2]);
+
+				char *le2 = le+atoi(re);
+				ret = strdup(le2);
+				free(le);
+				free(re);
 			}
 			else
 			if(token_lengths[1]==1 && command[token_starts[1]] == '.')
@@ -255,10 +405,6 @@ char *evaluate(char *command, int start, int len)
 			}
 		}
 		break;
-		default:
-		{
-			ret = strdup("dunno");
-		}
 		break;
 	}
 	
