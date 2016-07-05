@@ -389,6 +389,17 @@ back_after_join:
 				free(re);
 			}
 			else
+			if(token_lengths[1]==1 && command[token_starts[1]] == ']')
+			{
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+				char *re = evaluate(command, token_starts[2], token_lengths[2]);
+
+				le[atoi(re)] = '\0';
+				ret = strdup(le);
+				free(le);
+				free(re);
+			}
+			else
 			if(token_lengths[1]==1 && command[token_starts[1]] == '.')
 			{
 				char *le = evaluate(command, token_starts[0], token_lengths[0]);
