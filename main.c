@@ -162,13 +162,13 @@ int operator_priority(char *command, int no_tokens, int *token_starts, int *toke
 		else
 		{
 			if(command[token_starts[i]] == '?')
-				(*oper_prio)[i] = 1;
+				(*oper_prio)[i] = 1000;
 			else if(command[token_starts[i]] == '!')
-				(*oper_prio)[i] = 2;
+				(*oper_prio)[i] = 100;
 			else if(command[token_starts[i]] == '.')
-				(*oper_prio)[i] = 3;
+				(*oper_prio)[i] = 500;
 			else if(command[token_starts[i]] == '[' || command[token_starts[i]] == ']')
-				(*oper_prio)[i] = 4;
+				(*oper_prio)[i] = 500;
 				
 			if(operator_shibboleth(command, token_starts[i-1], token_lengths[i-1]))
 			{
@@ -195,7 +195,7 @@ char *evaluate(char *command, int start, int len)
 		// let's find biggest prio
 		int minprio = 1e9, minprio_index = -1;
 		for(int i = 0; i < no_tokens; i++)
-			if(oper_prio[i] < minprio)
+			if(oper_prio[i] <= minprio)
 			{
 				minprio = oper_prio[i];
 				minprio_index = i;
@@ -230,7 +230,7 @@ char *evaluate(char *command, int start, int len)
 			new_token_lengths[1] = token_lengths[minprio_index];				
 				
 			new_token_starts[2] = new_token_starts[1] + new_token_lengths[1];
-			new_token_lengths[2] = len - (new_token_lengths[0]+new_token_starts[1]);
+			new_token_lengths[2] = len - (new_token_lengths[0]+new_token_lengths[1]);
 		}
 			
 		free(token_lengths);
