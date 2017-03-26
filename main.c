@@ -10,6 +10,8 @@
 
 //#define DEBUG_PRINTF
 
+#define _GNU_SOURCE
+
 #ifdef DEBUG_PRINTF
 #define debug_printf printf
 #else
@@ -163,7 +165,7 @@ int operator_priority(char *command, int no_tokens, int *token_starts, int *toke
 			(*oper_prio)[i] = 1e9;
 		else
 		{
-			if(command[token_starts[i]] == '?')
+			if(command[token_starts[i]] == '|')
 				(*oper_prio)[i] = 1000;
 			else if(command[token_starts[i]] == '=')
 				(*oper_prio)[i] = 100;
@@ -278,9 +280,18 @@ back_after_join:
 			}
 			else
 			{
-				ret = malloc(1+len);
-				memcpy(ret, command+start, len);
-				ret[len] = '\0';
+				// do protect numbers from overwrite :)
+				char *val = getvar(command, start, len);
+				if(val)
+				{
+					return strdup(val);
+				}
+				else
+				{
+					ret = malloc(1+len);
+					memcpy(ret, command+start, len);
+					ret[len] = '\0';
+				}
 			}
 		}
 		break;
@@ -307,16 +318,66 @@ back_after_join:
 			}
 			
 			// T*
-			if(token_lengths[1]==1 && command[token_starts[1]] == '?')
+			// evaluation is default now!
+			/*if(token_lengths[1]==1 && command[token_starts[1]] == '?')
 			{
 				char *le = evaluate(command, token_starts[0], token_lengths[0]);
 				char *r = getvar(le, 0, strlen(le));
 				if(r) ret = strdup(r);
 				free(le);
+			}*/
+			if(token_lengths[1]==1 && command[token_starts[1]] == '~')
+			{
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+				int val = atoi(le);
+				if(val == 0)
+					ret = strdup("1");
+				else
+					ret = strdup("0");
+
+				free(le);
 			}
-			else
-			{}
-			
+			else if(token_lengths[1]==1 && command[token_starts[1]] == '~')
+			{
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+				int val = atoi(le);
+				if(val == 0)
+					ret = strdup("1");
+				else
+					ret = strdup("0");
+
+				free(le);
+			}
+			else if(token_lengths[1]==1 && command[token_starts[1]] == '\'')
+			{
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+				ret = malloc(token_lengths[0]+1);
+				memcpy(ret, command, token_lengths[0]);
+				ret[token_lengths[0]] = '\0';
+			}
+			else if(token_lengths[1]==1 && command[token_starts[1]] == '#')
+			{
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+				char buf[16];
+				sprintf(buf, "%d", strlen(le));
+				ret = strdup(buf);
+			}
+			else if(token_lengths[1]==1 && command[token_starts[1]] == '>')
+			{
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+				printf("%s\n", le);
+				ret = strdup(le);
+			}
+			else if(token_lengths[1]==1 && command[token_starts[1]] == '<')
+			{
+				ret = NULL;
+				int size;
+				getline(&ret, &size, stdin);
+				strtok(ret, "\r\n");
+
+				setvar(command, token_starts[0], token_lengths[0],
+						ret, 0, strlen(ret)); // todo subopt
+			}
 		}
 		break;
 		// good:
@@ -353,7 +414,7 @@ back_after_join:
 				free(re);
 			}
 			else
-			if(token_lengths[1]==1 && command[token_starts[1]] == '?')
+			if(token_lengths[1]==1 && command[token_starts[1]] == '|')
 			{
 				in_loop = 1;
 				for(;;)
