@@ -8,7 +8,7 @@
 #include <signal.h>
 
 
-#define DEBUG_PRINTF
+//#define DEBUG_PRINTF
 
 #ifdef DEBUG_PRINTF
 #define debug_printf printf
@@ -139,8 +139,10 @@ void debug_tokens(char *command, int no_tokens, int *token_starts, int *token_le
 	for(int i = 0; i < no_tokens; i++)
 	{
 		debug_printf("token %d: (%d,%d)'", i, token_starts[i], token_lengths[i]);
+#ifdef DEBUG_PRINTF
 		putsubstr(command, token_starts[i], token_lengths[i]);
-		printf("'\n");
+#endif
+		debug_printf("'\n");
 	}
 }
 
@@ -169,6 +171,12 @@ int operator_priority(char *command, int no_tokens, int *token_starts, int *toke
 				(*oper_prio)[i] = 500;
 			else if(command[token_starts[i]] == '[' || command[token_starts[i]] == ']')
 				(*oper_prio)[i] = 500;
+			else if(command[token_starts[i]] == '*' || command[token_starts[i]] == '/' || command[token_starts[i]] == '%')
+				(*oper_prio)[i] = 500;
+			else if(command[token_starts[i]] == '+' || command[token_starts[i]] == '-')
+				(*oper_prio)[i] = 400;
+			else if(command[token_starts[i]] == ',')
+				(*oper_prio)[i] = 100;
 				
 			if(operator_shibboleth(command, token_starts[i-1], token_lengths[i-1]))
 			{
@@ -184,10 +192,10 @@ char *evaluate(char *command, int start, int len)
 {
 	int no_tokens, *token_starts, *token_lengths;
 	char *ret = NULL;
-	printf("evaluate(%d, %d)\n", start, len);
+	debug_printf("evaluate(%d, %d)\n", start, len);
 	parse(command, start, len, &no_tokens, &token_starts, &token_lengths);
 	debug_tokens(command, no_tokens, token_starts, token_lengths);
-		
+
 	if(no_tokens > 3 || no_tokens == 3 && operator_shibboleth(command, token_starts[2], token_lengths[2]))
 	{
 		int *oper_prio = NULL;
@@ -240,7 +248,7 @@ char *evaluate(char *command, int start, int len)
 		token_lengths = new_token_lengths;
 	}
 
-	printf("AFTER MERGE\n");	
+	debug_printf("AFTER MERGE\n");
 		debug_tokens(command, no_tokens, token_starts, token_lengths);
 
 	
@@ -265,7 +273,7 @@ back_after_join:
 			}
 			if(command[token_starts[0]] == '(' && command[token_starts[0]+token_lengths[0]-1] == ')')
 			{
-				printf("!!!!! %d %d !!!!!!\n", token_starts[0]+1, token_lengths[0]-2);
+				debug_printf("!!!!! %d %d !!!!!!\n", token_starts[0]+1, token_lengths[0]-2);
 				ret = evaluate(command, token_starts[0]+1, token_lengths[0]-2);
 			}
 			else
@@ -414,6 +422,61 @@ back_after_join:
 				free(le);
 				free(re);
 			}
+			else if(token_lengths[1]==1 && command[token_starts[1]] == '+')
+			{
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+				char *re = evaluate(command, token_starts[2], token_lengths[2]);
+
+				int res = atoi(le) + atoi(re);
+				char _resbuf[16];
+				sprintf(_resbuf, "%d", res);
+
+				ret = strdup(_resbuf);
+			}
+			else if(token_lengths[1]==1 && command[token_starts[1]] == '-')
+			{
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+				char *re = evaluate(command, token_starts[2], token_lengths[2]);
+
+				int res = atoi(le) - atoi(re);
+				char _resbuf[16];
+				sprintf(_resbuf, "%d", res);
+
+				ret = strdup(_resbuf);
+			}
+			else if(token_lengths[1]==1 && command[token_starts[1]] == '*')
+			{
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+				char *re = evaluate(command, token_starts[2], token_lengths[2]);
+
+				int res = atoi(le) * atoi(re);
+				char _resbuf[16];
+				sprintf(_resbuf, "%d", res);
+
+				ret = strdup(_resbuf);
+			}
+			else if(token_lengths[1]==1 && command[token_starts[1]] == '/')
+			{
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+				char *re = evaluate(command, token_starts[2], token_lengths[2]);
+
+				int res = atoi(le) / atoi(re);
+				char _resbuf[16];
+				sprintf(_resbuf, "%d", res);
+
+				ret = strdup(_resbuf);
+			}
+			else if(token_lengths[1]==1 && command[token_starts[1]] == '%')
+			{
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+				char *re = evaluate(command, token_starts[2], token_lengths[2]);
+
+				int res = atoi(le) % atoi(re);
+				char _resbuf[16];
+				sprintf(_resbuf, "%d", res);
+
+				ret = strdup(_resbuf);
+			}
 		}
 		break;
 		break;
@@ -436,8 +499,9 @@ int main()
 		fgets(command, 4096, stdin);
 		if(command != strtok(command, "\r\n")) *command = 0;
 		debug_printf("GOT: '%s'\n", command);
-		old_sighandler = signal(SIGINT, sighandler);
+		//old_sighandler = signal(SIGINT, sighandler);
 		char *res = evaluate(command, 0, strlen(command));
+		//char *res = strdup("");
 		signal(SIGINT, old_sighandler);
 		printf("<< '%s'\n", res);
 		free(res);
