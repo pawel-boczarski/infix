@@ -165,7 +165,7 @@ int operator_priority(char *command, int no_tokens, int *token_starts, int *toke
 		{
 			if(command[token_starts[i]] == '?')
 				(*oper_prio)[i] = 1000;
-			else if(command[token_starts[i]] == '!')
+			else if(command[token_starts[i]] == '=')
 				(*oper_prio)[i] = 100;
 			else if(command[token_starts[i]] == '.')
 				(*oper_prio)[i] = 500;
@@ -176,7 +176,7 @@ int operator_priority(char *command, int no_tokens, int *token_starts, int *toke
 			else if(command[token_starts[i]] == '+' || command[token_starts[i]] == '-')
 				(*oper_prio)[i] = 400;
 			else if(command[token_starts[i]] == ',')
-				(*oper_prio)[i] = 100;
+				(*oper_prio)[i] = 50;
 				
 			if(operator_shibboleth(command, token_starts[i-1], token_lengths[i-1]))
 			{
@@ -339,18 +339,18 @@ back_after_join:
 				signal_requested = 1;
 				break;
 			}
-			if(token_lengths[1]==1 && command[token_starts[1]] == '!')
+			if(token_lengths[1]==1 && command[token_starts[1]] == '=')
 			{
-				char *le = evaluate(command, token_starts[0], token_lengths[0]);
-				int len = strlen(le);
+				char *re = evaluate(command, token_starts[2], token_lengths[2]);
+				int len = strlen(re);
 			
-				setvar(command, token_starts[2], token_lengths[2],
-				       le, 0, len);
+				setvar(command, token_starts[0], token_lengths[0],
+				       re, 0, len);
 				
 				ret = malloc(1+len);
-				memcpy(ret, le, len);
-				ret[token_lengths[0]] = '\0';
-				free(le);
+				memcpy(ret, re, len);
+				ret[len] = '\0';
+				free(re);
 			}
 			else
 			if(token_lengths[1]==1 && command[token_starts[1]] == '?')
@@ -499,7 +499,7 @@ int main()
 		fgets(command, 4096, stdin);
 		if(command != strtok(command, "\r\n")) *command = 0;
 		debug_printf("GOT: '%s'\n", command);
-		//old_sighandler = signal(SIGINT, sighandler);
+		old_sighandler = signal(SIGINT, sighandler);
 		char *res = evaluate(command, 0, strlen(command));
 		//char *res = strdup("");
 		signal(SIGINT, old_sighandler);
