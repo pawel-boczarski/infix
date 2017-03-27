@@ -18,13 +18,30 @@
 #define debug_printf(s, ...) do { } while ( 0 )
 #endif
 
+// for now variables and functions are treated the same way!
 struct {
 	struct {
 		char *name;
 		char *value;
+#ifdef DEBUG_PERF
+		int no_writes;
+		int no_reads;
+#endif
 	} *namevalue_pairs;
 	int no;
 } vars;
+
+struct {
+	struct {
+		char *name;
+		char *value;
+#ifdef DEBUG_PERF
+		int no_writes;
+		int no_reads;
+#endif
+	} *namevalue_pairs;
+	int no;
+} opers;
 
 int signal_requested;
 int loop_exit_requested;
@@ -61,17 +78,92 @@ void setvar(const char *name, int name_start, int name_len, const char *value, i
 	vars.namevalue_pairs[i].name = n;
 set_value:
 	vars.namevalue_pairs[i].value = v;
+#ifdef DEBUG_PERF
+	vars.namevalue_pairs[i].no_writes++;
+#endif
+}
+
+void setoper(const char *name, int name_start, int name_len, const char *value, int value_start, int value_len)
+{
+	char *v = malloc(1+value_len);
+	memcpy(v, value+value_start, value_len);
+	v[value_len] = '\0';
+
+	int i;
+	for(i = 0; i < opers.no; i++)
+		if(   strlen(opers.namevalue_pairs[i].name) == name_len
+		   && memcmp(opers.namevalue_pairs[i].name, name+name_start, name_len) == 0)
+		{
+			free(opers.namevalue_pairs[i].value);
+			goto set_value;
+		}
+
+	char *n = malloc(1+name_len);
+	memcpy(n, name+name_start, name_len);
+	n[name_len] = '\0';
+
+	opers.namevalue_pairs = realloc(opers.namevalue_pairs, ++opers.no * sizeof(*(opers.namevalue_pairs)));
+	opers.namevalue_pairs[i].name = n;
+set_value:
+	opers.namevalue_pairs[i].value = v;
+#ifdef DEBUG_PERF
+	opers.namevalue_pairs[i].no_writes++;
+#endif
 }
 
 char *getvar(const char *name, int name_start, int name_len)
 {
 	for(int i = 0; i < vars.no; i++)
 		if(   strlen(vars.namevalue_pairs[i].name) == name_len
-		   && memcmp(vars.namevalue_pairs[i].name, name+name_start, name_len) == 0)
+		   && memcmp(vars.namevalue_pairs[i].name, name+name_start, name_len) == 0) {
+#ifdef DEBUG_PERF
+			vars.namevalue_pairs[i].no_reads++;
+#endif
 			return vars.namevalue_pairs[i].value;
+		}
 	
 	return NULL;
 }
+
+char *getoper(const char *name, int name_start, int name_len)
+{
+	for(int i = 0; i < opers.no; i++)
+		if(   strlen(opers.namevalue_pairs[i].name) == name_len
+		   && memcmp(opers.namevalue_pairs[i].name, name+name_start, name_len) == 0) {
+#ifdef DEBUG_PERF
+			opers.namevalue_pairs[i].no_reads++;
+#endif
+			return opers.namevalue_pairs[i].value;
+		}
+
+	return NULL;
+}
+
+
+//char *eval_function
+
+void dumpvar()
+{
+	for(int i = 0; i < vars.no; i++) {
+		printf("%s: '%s'\n", vars.namevalue_pairs[i].name, vars.namevalue_pairs[i].value);
+#ifdef DEBUG_PERF
+		printf("%s: '%s' (reads/writes: %d/%d)\n", vars.namevalue_pairs[i].name, vars.namevalue_pairs[i].value,
+				vars.namevalue_pairs[i].no_reads, vars.namevalue_pairs[i].no_writes);
+#endif
+	}
+}
+
+void dumpoper()
+{
+	for(int i = 0; i < opers.no; i++) {
+		printf("%s: '%s'\n", opers.namevalue_pairs[i].name, opers.namevalue_pairs[i].value);
+#ifdef DEBUG_PERF
+		printf("%s: '%s' (reads/writes: %d/%d)\n", opers.namevalue_pairs[i].name, opers.namevalue_pairs[i].value,
+				opers.namevalue_pairs[i].no_reads, opers.namevalue_pairs[i].no_writes);
+#endif
+	}
+}
+
 
 void putsubstr(char *s, int start, int len)
 {
@@ -103,6 +195,7 @@ void parse(char *command, int start, int len, int *no_tokens, int **token_starts
 		if(sub_started && this_char == '(')
 			++sub_started;
 
+		// condition for "new token"
 		if( (
 				(!sub_started)
 				&& (   (isalpha(this_char) && !isalpha(last_char))
@@ -116,11 +209,14 @@ void parse(char *command, int start, int len, int *no_tokens, int **token_starts
 			if(this_char == '(') ++sub_started;
 			if(last_char == '\0') goto store_char_and_continue;
 
-			*token_starts = realloc(*token_starts, ++*no_tokens * sizeof(int));
-			(*token_starts)[*no_tokens-1] = current_start;
-			*token_lengths = realloc(*token_lengths, *no_tokens * sizeof(int));
-			(*token_lengths)[*no_tokens-1] = i - current_start;
-			debug_printf("(%d,%d)\n",current_start, i-current_start);
+			if(command[current_start] != ' ')
+			{
+				*token_starts = realloc(*token_starts, ++*no_tokens * sizeof(int));
+				(*token_starts)[*no_tokens-1] = current_start;
+				*token_lengths = realloc(*token_lengths, *no_tokens * sizeof(int));
+				(*token_lengths)[*no_tokens-1] = i - current_start;
+				debug_printf("(%d,%d)\n",current_start, i-current_start);
+			}
 
 			current_start = i;
 		}
@@ -150,7 +246,12 @@ void debug_tokens(char *command, int no_tokens, int *token_starts, int *token_le
 
 int operator_shibboleth(char *command, int start, int len)
 {
-	if(!isalpha(command[start]) && !isdigit(command[start]) && command[start] != '(') return 1;
+	if(!isalpha(command[start]) && !isdigit(command[start]) && command[start] != '(') {
+		// todo what a terrible waste of memory!
+		return 1;
+	}
+	if(getoper(command, start, len) != NULL)
+		return 1;
 	return 0;
 }
 
@@ -165,9 +266,9 @@ int operator_priority(char *command, int no_tokens, int *token_starts, int *toke
 			(*oper_prio)[i] = 1e9;
 		else
 		{
-			if(command[token_starts[i]] == '|')
+			if(command[token_starts[i]] == '|' || command[token_starts[i]] == '?')
 				(*oper_prio)[i] = 1000;
-			else if(command[token_starts[i]] == '=')
+			else if(command[token_starts[i]] == '=' || command[token_starts[i]] == ':')
 				(*oper_prio)[i] = 100;
 			else if(command[token_starts[i]] == '.')
 				(*oper_prio)[i] = 500;
@@ -177,9 +278,13 @@ int operator_priority(char *command, int no_tokens, int *token_starts, int *toke
 				(*oper_prio)[i] = 500;
 			else if(command[token_starts[i]] == '+' || command[token_starts[i]] == '-')
 				(*oper_prio)[i] = 400;
+			else if(command[token_starts[i]] == '<' || command[token_starts[i]] == '>')
+				(*oper_prio)[i] = 300;
 			else if(command[token_starts[i]] == ',')
 				(*oper_prio)[i] = 50;
-				
+			else
+				(*oper_prio)[i] = 10;
+
 			if(operator_shibboleth(command, token_starts[i-1], token_lengths[i-1]))
 			{
 				(*oper_prio)[i-1] += 1000; // last was one-argument op
@@ -317,15 +422,6 @@ back_after_join:
 				break;				
 			}
 			
-			// T*
-			// evaluation is default now!
-			/*if(token_lengths[1]==1 && command[token_starts[1]] == '?')
-			{
-				char *le = evaluate(command, token_starts[0], token_lengths[0]);
-				char *r = getvar(le, 0, strlen(le));
-				if(r) ret = strdup(r);
-				free(le);
-			}*/
 			if(token_lengths[1]==1 && command[token_starts[1]] == '~')
 			{
 				char *le = evaluate(command, token_starts[0], token_lengths[0]);
@@ -350,9 +446,8 @@ back_after_join:
 			}
 			else if(token_lengths[1]==1 && command[token_starts[1]] == '\'')
 			{
-				char *le = evaluate(command, token_starts[0], token_lengths[0]);
 				ret = malloc(token_lengths[0]+1);
-				memcpy(ret, command, token_lengths[0]);
+				memcpy(ret, command+token_starts[0], token_lengths[0]);
 				ret[token_lengths[0]] = '\0';
 			}
 			else if(token_lengths[1]==1 && command[token_starts[1]] == '#')
@@ -403,6 +498,7 @@ back_after_join:
 			if(token_lengths[1]==1 && command[token_starts[1]] == '=')
 			{
 				char *re = evaluate(command, token_starts[2], token_lengths[2]);
+				debug_printf("---------------- : '%s'\n", re);
 				int len = strlen(re);
 			
 				setvar(command, token_starts[0], token_lengths[0],
@@ -412,6 +508,19 @@ back_after_join:
 				memcpy(ret, re, len);
 				ret[len] = '\0';
 				free(re);
+			}
+			else if(token_lengths[1]==1 && command[token_starts[1]] == ':')
+			{
+//				char *re = evaluate(command, token_starts[2], token_lengths[2]);
+//				debug_printf("---------------- : '%s'\n", re);
+//				int len = strlen(re);
+
+				setoper(command, token_starts[0], token_lengths[0],
+				       command, token_starts[2], token_lengths[2]);
+
+				ret = malloc(1+token_lengths[2]);
+				memcpy(ret, command+token_starts[2], token_lengths[2]);
+				ret[token_lengths[2]] = '\0';
 			}
 			else
 			if(token_lengths[1]==1 && command[token_starts[1]] == '|')
@@ -437,6 +546,24 @@ back_after_join:
 				}
 				in_loop = 0;
 				loop_exit_requested = 0;
+			}
+			else
+			if(token_lengths[1]==1 && command[token_starts[1]] == '?')
+			{
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+				int true_val = atoi(le);
+				free(ret);
+				free(le);
+					
+				if(!true_val)
+				{
+					ret = strdup("");
+					break;
+				}
+				else
+				{
+					ret = evaluate(command, token_starts[2], token_lengths[2]);
+				}
 			}
 			else
 			if(token_lengths[1]==1 && command[token_starts[1]] == ',')
@@ -538,8 +665,34 @@ back_after_join:
 
 				ret = strdup(_resbuf);
 			}
+			else if(token_lengths[1]==1 && command[token_starts[1]] == '<')
+			{
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+				char *re = evaluate(command, token_starts[2], token_lengths[2]);
+
+				if(atoi(le) < atoi(re))
+					ret = strdup("1");
+				else
+					ret = strdup("0");
+			}
+			else if(token_lengths[1]==1 && command[token_starts[1]] == '>')
+			{
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+				char *re = evaluate(command, token_starts[2], token_lengths[2]);
+
+				if(atoi(le) > atoi(re))
+					ret = strdup("1");
+				else
+					ret = strdup("0");
+			}
+			else {
+				// todo restore vars!
+				setvar("l", 0, 1, command, token_starts[0], token_lengths[0]);
+				setvar("r", 0, 1, command, token_starts[2], token_lengths[2]);
+				char *oper = getoper(command, token_starts[1], token_lengths[1]);
+				ret = evaluate(oper, 0, strlen(oper));
+			}
 		}
-		break;
 		break;
 	}
 	
@@ -561,6 +714,16 @@ int main()
 		if(command != strtok(command, "\r\n")) *command = 0;
 		debug_printf("GOT: '%s'\n", command);
 		old_sighandler = signal(SIGINT, sighandler);
+		if(command[0] == ':') {
+			if(strcmp(command, ":vars") == 0) {
+				dumpvar();
+				continue;
+			}
+			else if(strcmp(command, ":opers") == 0) {
+				dumpoper();
+				continue;
+			}
+		}
 		char *res = evaluate(command, 0, strlen(command));
 		//char *res = strdup("");
 		signal(SIGINT, old_sighandler);
