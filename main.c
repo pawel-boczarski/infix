@@ -8,7 +8,7 @@
 #include <signal.h>
 
 
-//#define DEBUG_PRINTF
+#define DEBUG_PRINTF
 
 #define _GNU_SOURCE
 
@@ -17,6 +17,13 @@
 #else
 #define debug_printf(s, ...) do { } while ( 0 )
 #endif
+
+#ifdef DEBUG_TOKENS
+#define debug_tokens debug_tokens_fun
+#else
+#define debug_tokens(s, ...) do { } while ( 0 )
+#endif
+
 
 // for now variables and functions are treated the same way!
 struct {
@@ -81,6 +88,11 @@ set_value:
 #ifdef DEBUG_PERF
 	vars.namevalue_pairs[i].no_writes++;
 #endif
+}
+
+void delvar(const char *name) {
+    // for now we like it
+    setvar(name,0,strlen(name),"", 0, 0);
 }
 
 void setoper(const char *name, int name_start, int name_len, const char *value, int value_start, int value_len)
@@ -215,7 +227,9 @@ void parse(char *command, int start, int len, int *no_tokens, int **token_starts
 				(*token_starts)[*no_tokens-1] = current_start;
 				*token_lengths = realloc(*token_lengths, *no_tokens * sizeof(int));
 				(*token_lengths)[*no_tokens-1] = i - current_start;
+#ifdef DEBUG_TOKENS
 				debug_printf("(%d,%d)\n",current_start, i-current_start);
+#endif
 			}
 
 			current_start = i;
@@ -229,22 +243,24 @@ store_char_and_continue:
 	(*token_starts)[*no_tokens-1] = current_start;
 	*token_lengths = realloc(*token_lengths, *no_tokens * sizeof(int));
 	(*token_lengths)[*no_tokens-1] = i - current_start;
-			debug_printf("*(%d,%d)\n",current_start, i-current_start);
+#ifdef DEBUG_TOKENS
+    debug_printf("*(%d,%d)\n",current_start, i-current_start);
+#endif
 }
 
-void debug_tokens(char *command, int no_tokens, int *token_starts, int *token_lengths)
+void debug_tokens_fun(char *command, int no_tokens, int *token_starts, int *token_lengths)
 {
 	for(int i = 0; i < no_tokens; i++)
 	{
-		debug_printf("token %d: (%d,%d)'", i, token_starts[i], token_lengths[i]);
+		printf("token %d: (%d,%d)'", i, token_starts[i], token_lengths[i]);
 #ifdef DEBUG_PRINTF
 		putsubstr(command, token_starts[i], token_lengths[i]);
 #endif
-		debug_printf("'\n");
+		printf("'\n");
 	}
 }
 
-int operator_shibboleth(char *command, int start, int len)
+int isoper(char *command, int start, int len)
 {
 	if(!isalpha(command[start]) && !isdigit(command[start]) && command[start] != '(') {
 		// todo what a terrible waste of memory!
@@ -255,14 +271,14 @@ int operator_shibboleth(char *command, int start, int len)
 	return 0;
 }
 
-int operator_priority(char *command, int no_tokens, int *token_starts, int *token_lengths, int **oper_prio)
+void operator_priority(char *command, int no_tokens, int *token_starts, int *token_lengths, int **oper_prio)
 {
 	*oper_prio = calloc(sizeof(int), no_tokens);
 	
 	// pre: first token is not operator!
 	for(int i = 0; i < no_tokens; i++)
 	{
-		if(!operator_shibboleth(command, token_starts[i], token_lengths[i]))
+		if(!isoper(command, token_starts[i], token_lengths[i]))
 			(*oper_prio)[i] = 1e9;
 		else
 		{
@@ -285,7 +301,7 @@ int operator_priority(char *command, int no_tokens, int *token_starts, int *toke
 			else
 				(*oper_prio)[i] = 10;
 
-			if(operator_shibboleth(command, token_starts[i-1], token_lengths[i-1]))
+			if(isoper(command, token_starts[i-1], token_lengths[i-1]))
 			{
 				(*oper_prio)[i-1] += 1000; // last was one-argument op
 			}
@@ -297,13 +313,16 @@ int operator_priority(char *command, int no_tokens, int *token_starts, int *toke
 
 char *evaluate(char *command, int start, int len)
 {
+        static int debug_recur = 0;
+        static char debug_padding[] = "|||||||||||||||||||||||||||||||||||||||";
+        debug_recur++;
 	int no_tokens, *token_starts, *token_lengths;
 	char *ret = NULL;
-	debug_printf("evaluate(%d, %d)\n", start, len);
+	debug_printf("%.*sevaluate: \"%.*s\"        [%p + %d]\n", debug_recur, debug_padding, len, command+start, command, len);
 	parse(command, start, len, &no_tokens, &token_starts, &token_lengths);
 	debug_tokens(command, no_tokens, token_starts, token_lengths);
 
-	if(no_tokens > 3 || no_tokens == 3 && operator_shibboleth(command, token_starts[2], token_lengths[2]))
+	if(no_tokens > 3 || (no_tokens == 3 && isoper(command, token_starts[2], token_lengths[2])))
 	{
 		int *oper_prio = NULL;
 		operator_priority(command, no_tokens, token_starts, token_lengths, &oper_prio);
@@ -330,7 +349,7 @@ char *evaluate(char *command, int start, int len)
 			new_token_lengths[0] = token_starts[minprio_index] - token_starts[0];
 
 			new_token_starts[1] = token_starts[minprio_index];
-			new_token_lengths[1] = len - new_token_lengths[0];				
+			new_token_lengths[1] = len - new_token_lengths[0];
 		}
 		else
 		{
@@ -355,15 +374,17 @@ char *evaluate(char *command, int start, int len)
 		token_lengths = new_token_lengths;
 	}
 
+#ifdef DEBUG_TOKENS
 	debug_printf("AFTER MERGE\n");
-		debug_tokens(command, no_tokens, token_starts, token_lengths);
-
+#endif
+	debug_tokens(command, no_tokens, token_starts, token_lengths);
 	
 	if(signal_requested)
 	{
 		signal_requested = 0;
 		printf("Interrupt: exit last frame.\n");
 		if(in_loop) loop_exit_requested = 1;
+                debug_recur--;
 		return strdup("0");
 	}
 	
@@ -374,13 +395,13 @@ back_after_join:
 		{
 			// good: T
 			// bad:  *
-			if(operator_shibboleth(command, token_starts[0], token_lengths[0]))
+			if(isoper(command, token_starts[0], token_lengths[0]))
 			{
 				printf("ERROR has occured => 1 arg * (operator only)!\n");
 			}
 			if(command[token_starts[0]] == '(' && command[token_starts[0]+token_lengths[0]-1] == ')')
 			{
-				debug_printf("!!!!! %d %d !!!!!!\n", token_starts[0]+1, token_lengths[0]-2);
+			//	debug_printf("!!!!! %d %d !!!!!!\n", token_starts[0]+1, token_lengths[0]-2);
 				ret = evaluate(command, token_starts[0]+1, token_lengths[0]-2);
 			}
 			else
@@ -389,7 +410,7 @@ back_after_join:
 				char *val = getvar(command, start, len);
 				if(val)
 				{
-					return strdup(val);
+					ret = strdup(val);
 				}
 				else
 				{
@@ -402,23 +423,16 @@ back_after_join:
 		break;
 		case 2:
 		{
-			// good:
-			// T*
-			// bad:
-			// *x
-			// TT
-			if(operator_shibboleth(command, token_starts[0], token_lengths[0]))
+			if(isoper(command, token_starts[0], token_lengths[0]))
 			{
 				printf("ERROR has occured => 2 arg *T or ** (operator first) !\n");
 				ret = strdup("");
-				signal_requested = 1;
 				break;
 			}
-			if(!operator_shibboleth(command, token_starts[1], token_lengths[1]))
+			if(!isoper(command, token_starts[1], token_lengths[1]))
 			{
 				printf("ERROR has occured => 2 arg TT (no operator) !\n");
 				ret = strdup("");
-				signal_requested = 1;
 				break;				
 			}
 			
@@ -446,9 +460,11 @@ back_after_join:
 			}
 			else if(token_lengths[1]==1 && command[token_starts[1]] == '\'')
 			{
+                                // eval-haneun got!
 				ret = malloc(token_lengths[0]+1);
 				memcpy(ret, command+token_starts[0], token_lengths[0]);
-				ret[token_lengths[0]] = '\0';
+                                ret[token_lengths[0]] = '\0';
+                            //ret = strdup("OPERATOR_WITH_NO_MEANING");
 			}
 			else if(token_lengths[1]==1 && command[token_starts[1]] == '#')
 			{
@@ -456,6 +472,13 @@ back_after_join:
 				char buf[16];
 				sprintf(buf, "%d", strlen(le));
 				ret = strdup(buf);
+			}
+			else if(token_lengths[1]==1 && command[token_starts[1]] == '*')
+			{
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+                                char *nexte = evaluate(le, 0, strlen(le));
+				ret = nexte;
+                                free(le);
 			}
 			else if(token_lengths[1]==1 && command[token_starts[1]] == '>')
 			{
@@ -475,30 +498,21 @@ back_after_join:
 			}
 		}
 		break;
-		// good:
-		// T*T
-		// T**
-		// bad:
-		// *xx
-		// TTx
 		case 3:
 		{
-			if(operator_shibboleth(command, token_starts[0], token_lengths[0]))
+			if(isoper(command, token_starts[0], token_lengths[0]))
 			{
 				printf("ERROR has occured => 3 arg *xx (operator first) !\n");
-				signal_requested = 1;
 				break;
 			}
-			else if(!operator_shibboleth(command, token_starts[1], token_lengths[1]))
+			else if(!isoper(command, token_starts[1], token_lengths[1]))
 			{
 				printf("ERROR has occured => 3 arg TTx (second is not operator) !\n");
-				signal_requested = 1;
 				break;
 			}
 			if(token_lengths[1]==1 && command[token_starts[1]] == '=')
 			{
 				char *re = evaluate(command, token_starts[2], token_lengths[2]);
-				debug_printf("---------------- : '%s'\n", re);
 				int len = strlen(re);
 			
 				setvar(command, token_starts[0], token_lengths[0],
@@ -511,9 +525,6 @@ back_after_join:
 			}
 			else if(token_lengths[1]==1 && command[token_starts[1]] == ':')
 			{
-//				char *re = evaluate(command, token_starts[2], token_lengths[2]);
-//				debug_printf("---------------- : '%s'\n", re);
-//				int len = strlen(re);
 
 				setoper(command, token_starts[0], token_lengths[0],
 				       command, token_starts[2], token_lengths[2]);
@@ -687,14 +698,54 @@ back_after_join:
 			}
 			else {
 				// todo restore vars!
+				char *lsave = getvar("l", 0, 1);
+				char *rsave = getvar("r", 0, 1);
+//				char *Lsave = getvar("L", 0, 1);
+//				char *Rsave = getvar("R", 0, 1);
+                                
+                                if(lsave) lsave = strdup(lsave);
+                                if(rsave) rsave = strdup(rsave);
+ //                               if(Lsave) Lsave = strdup(Lsave);
+  //                              if(Rsave) Rsave = strdup(Rsave);
+                                
 				setvar("l", 0, 1, command, token_starts[0], token_lengths[0]);
 				setvar("r", 0, 1, command, token_starts[2], token_lengths[2]);
+  //                              delvar("L"); // todo should not be made up unless existed already
+  //                              delvar("R");
 				char *oper = getoper(command, token_starts[1], token_lengths[1]);
 				ret = evaluate(oper, 0, strlen(oper));
+//                                char *newl = getvar("L", 0, 1);
+ //                               char *newr = getvar("R", 0, 1);
+				if(lsave) {
+					setvar("l", 0, 1, lsave, 0, strlen(lsave));
+					free(lsave);
+				}
+				if(rsave) {
+					setvar("r", 0, 1, rsave, 0, strlen(rsave));
+					free(rsave);
+				}
+/*				if(Lsave) {
+					setvar("L", 0, 1, Lsave, 0, strlen(lsave));
+					free(Lsave);
+				}
+				if(Rsave) {
+					setvar("R", 0, 1, Rsave, 0, strlen(rsave));
+					free(Rsave);
+				}*/
+   /*                             if(newl && *newl) {
+					setvar(command, token_starts[0], token_lengths[0], newl, 0, strlen(newl));
+                                }
+                                if(newr && *newr) {
+					setvar(command, token_starts[2], token_lengths[2], newr, 0, strlen(newr));
+                                } */
+                                
 			}
 		}
 		break;
 	}
+        
+        debug_printf("%.*s<= '%s'\n", debug_recur, debug_padding, ret);
+        debug_recur--;
 	
 cleanup:
 	free(token_starts);
@@ -712,7 +763,6 @@ int main()
 		printf(">> ");
 		fgets(command, 4096, stdin);
 		if(command != strtok(command, "\r\n")) *command = 0;
-		debug_printf("GOT: '%s'\n", command);
 		old_sighandler = signal(SIGINT, sighandler);
 		if(command[0] == ':') {
 			if(strcmp(command, ":vars") == 0) {
