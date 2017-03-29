@@ -284,7 +284,7 @@ void operator_priority(char *command, int no_tokens, int *token_starts, int *tok
 		{
 			if(command[token_starts[i]] == '|' || command[token_starts[i]] == '?')
 				(*oper_prio)[i] = 1000;
-			else if(command[token_starts[i]] == '=' || command[token_starts[i]] == ':')
+			else if(command[token_starts[i]] == '=' || command[token_starts[i]] == ':' || command[token_starts[i]] == '!')
 				(*oper_prio)[i] = 100;
 			else if(command[token_starts[i]] == '.')
 				(*oper_prio)[i] = 500;
@@ -447,17 +447,6 @@ back_after_join:
 
 				free(le);
 			}
-			else if(token_lengths[1]==1 && command[token_starts[1]] == '~')
-			{
-				char *le = evaluate(command, token_starts[0], token_lengths[0]);
-				int val = atoi(le);
-				if(val == 0)
-					ret = strdup("1");
-				else
-					ret = strdup("0");
-
-				free(le);
-			}
 			else if(token_lengths[1]==1 && command[token_starts[1]] == '\'')
 			{
                                 // eval-haneun got!
@@ -522,6 +511,21 @@ back_after_join:
 				memcpy(ret, re, len);
 				ret[len] = '\0';
 				free(re);
+			}
+			else if(token_lengths[1]==1 && command[token_starts[1]] == '!')
+			{
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+				char *re = evaluate(command, token_starts[2], token_lengths[2]);
+				int len = strlen(re);
+			
+				setvar(le, 0, strlen(le),
+				       re, 0, len);
+				
+				ret = malloc(1+len);
+				memcpy(ret, re, len);
+				ret[len] = '\0';
+				free(re);
+                                free(le);
 			}
 			else if(token_lengths[1]==1 && command[token_starts[1]] == ':')
 			{

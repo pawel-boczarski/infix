@@ -1,20 +1,39 @@
-n=100,a=0,n|(a=a+n,n=n-1),a
--> n-ta liczba trojkatna
+(2+4)/5
+-> computes the given expression
 
-n=7,r=1,d=n-1,(r*d)|(r=n%d,d=d-1),d+1
--> znajduje najwiekszy dzielnik liczby n mniejszy niz n
+n=100,a=0,n|(a=a+n,n=n-1),a
+-> computes 100th triangle number (use of '|' loop operator)
+
+(a%2)~?(a=a+1)
+-> rounds a to nearest even number (use of '~' negation and '?' conditional operator)
+
+n=77,r=1,d=n-1,(r*d)|(r=n%d,d=d-1),d+1
+-> find biggest divisor of 77 less than 77
 
 a=60,d=a-1,r=1,(a-1)|(q=a,(a%d)~?(d>,a=a/d),d=d-1)
--> rozklada a na co najmniej dwa czynniki
+-> splits 60 into at least two factors
 
 a=797,d=2,(a-1)|((a%d)~|(d>,a=a/d),d=d+1)
--> faktoryzuje a
+-> factors a
 
 a=12,b=36,(a<b)?(c=a,a=b,b=c),(b>1)|(a=a%b,c=a,a=b,b=c),a
--> oblicza nwd(12,36)
+-> computes greatest common divisor of 12 and 36
 
 gcd:((l<r)?(c=l,l=r,r=c),(r>1)|(l=l%r,c=l,l=r,r=c),l)
+12 gcd 36
+-> computes greatest common divisor for 12 and 36 (won't work with variables)
+
+gcd:(l=l*,r=r*,(l<r)?(c=l,l=r,r=c),(r>1)|(l=l%r,c=l,l=r,r=c),l)
 a gcd b
--> oblicza nwd(a,b)
+-> the version of the previous function that also works when variables given as args
+
+(uses '*' indirection operator)
+
+zeroboth:(l!0,r!0)
+-> zeroes both variables given as arguments
+
+swp:(c=l*,l!r*,r!c)
+a swp b
+-> swaps a and b variables (uses '!' operator, that evaluates left side and then assigns)
 
 
