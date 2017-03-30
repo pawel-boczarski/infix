@@ -9,6 +9,7 @@
 
 
 #define DEBUG_PRINTF
+#define DEBUG_TOKENS
 
 #define _GNU_SOURCE
 
@@ -198,27 +199,36 @@ void parse(char *command, int start, int len, int *no_tokens, int **token_starts
 	*token_lengths = NULL;
 	
 	int sub_started = 0;
+        int double_quote_scope = 0;
+        
 	char last_char='\0';
 	int current_start = start, i;
 	for(i = start; i < start+len; i++)
 	{
 		char this_char = command[i];
 		
-		if(sub_started && this_char == '(')
+		if(sub_started && !double_quote_scope && this_char == '(')
 			++sub_started;
+                                
+                if(!sub_started && this_char == '\"')
+                    double_quote_scope++;
 
 		// condition for "new token"
 		if( (
-				(!sub_started)
+				(!sub_started && !double_quote_scope)
 				&& (   (isalpha(this_char) && !isalpha(last_char))
 				   || (isdigit(this_char) && !isdigit(last_char))
 				   || (!isalpha(this_char) && !isdigit(this_char))
 				)
 			)
-			|| (last_char == ')' && !--sub_started)
+			|| (last_char == ')') && (!double_quote_scope && !--sub_started)
+//			|| (this_char == '\"') && (!sub_started && double_quote_scope)
+			|| (last_char == '\"') && (!sub_started && double_quote_scope == 2)
 		  )
 		{
 			if(this_char == '(') ++sub_started;
+                        double_quote_scope = 0;
+                       
 			if(last_char == '\0') goto store_char_and_continue;
 
 			if(command[current_start] != ' ')
@@ -262,7 +272,8 @@ void debug_tokens_fun(char *command, int no_tokens, int *token_starts, int *toke
 
 int isoper(char *command, int start, int len)
 {
-	if(!isalpha(command[start]) && !isdigit(command[start]) && command[start] != '(') {
+	if(!isalpha(command[start]) && !isdigit(command[start]) && command[start] != '('
+                && command[start] != '\"') {
 		// todo what a terrible waste of memory!
 		return 1;
 	}
@@ -403,6 +414,13 @@ back_after_join:
 			{
 			//	debug_printf("!!!!! %d %d !!!!!!\n", token_starts[0]+1, token_lengths[0]-2);
 				ret = evaluate(command, token_starts[0]+1, token_lengths[0]-2);
+			}
+			else if(command[token_starts[0]] == '\"' && command[token_starts[0]+token_lengths[0]-1] == '\"')
+			{
+			//	debug_printf("!!!!! %d %d !!!!!!\n", token_starts[0]+1, token_lengths[0]-2);
+                                ret = malloc (token_lengths[0] + 1);
+                                memcpy(ret, command+token_starts[0], token_lengths[0]);
+                                ret[token_lengths[0]] = '\0';
 			}
 			else
 			{
