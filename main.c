@@ -8,8 +8,8 @@
 #include <signal.h>
 
 
-#define DEBUG_PRINTF
-#define DEBUG_TOKENS
+//#define DEBUG_PRINTF
+//#define DEBUG_TOKENS
 
 #define _GNU_SOURCE
 
@@ -219,15 +219,16 @@ void parse(char *command, int start, int len, int *no_tokens, int **token_starts
 				&& (   (isalpha(this_char) && !isalpha(last_char))
 				   || (isdigit(this_char) && !isdigit(last_char))
 				   || (!isalpha(this_char) && !isdigit(this_char))
+                                   
 				)
 			)
 			|| (last_char == ')') && (!double_quote_scope && !--sub_started)
-//			|| (this_char == '\"') && (!sub_started && double_quote_scope)
 			|| (last_char == '\"') && (!sub_started && double_quote_scope == 2)
+			|| (this_char == '\"' && last_char != '\0') && (!sub_started && double_quote_scope == 1)
 		  )
 		{
 			if(this_char == '(') ++sub_started;
-                        double_quote_scope = 0;
+                        double_quote_scope %= 2;
                        
 			if(last_char == '\0') goto store_char_and_continue;
 
@@ -412,15 +413,13 @@ back_after_join:
 			}
 			if(command[token_starts[0]] == '(' && command[token_starts[0]+token_lengths[0]-1] == ')')
 			{
-			//	debug_printf("!!!!! %d %d !!!!!!\n", token_starts[0]+1, token_lengths[0]-2);
 				ret = evaluate(command, token_starts[0]+1, token_lengths[0]-2);
 			}
 			else if(command[token_starts[0]] == '\"' && command[token_starts[0]+token_lengths[0]-1] == '\"')
 			{
-			//	debug_printf("!!!!! %d %d !!!!!!\n", token_starts[0]+1, token_lengths[0]-2);
-                                ret = malloc (token_lengths[0] + 1);
-                                memcpy(ret, command+token_starts[0], token_lengths[0]);
-                                ret[token_lengths[0]] = '\0';
+                                ret = malloc (token_lengths[0]-2 + 1);
+                                memcpy(ret, command+token_starts[0]+1, token_lengths[0]-2);
+                                ret[token_lengths[0]-2] = '\0';
 			}
 			else
 			{
@@ -490,7 +489,7 @@ back_after_join:
 			else if(token_lengths[1]==1 && command[token_starts[1]] == '>')
 			{
 				char *le = evaluate(command, token_starts[0], token_lengths[0]);
-				printf("%s\n", le);
+                                printf("%s\n", le);
 				ret = strdup(le);
 			}
 			else if(token_lengths[1]==1 && command[token_starts[1]] == '<')
@@ -502,6 +501,20 @@ back_after_join:
 
 				setvar(command, token_starts[0], token_lengths[0],
 						ret, 0, strlen(ret)); // todo subopt
+			}
+                        else {
+				// todo restore vars!
+				char *asave = getvar("a", 0, 1);
+                                
+                                if(asave) asave = strdup(asave);
+                                
+				setvar("a", 0, 1, command, token_starts[0], token_lengths[0]);
+				char *oper = getoper(command, token_starts[1], token_lengths[1]);
+				ret = evaluate(oper, 0, strlen(oper));
+				if(asave) {
+					setvar("a", 0, 1, asave, 0, strlen(asave));
+					free(asave);
+				}
 			}
 		}
 		break;
@@ -722,22 +735,14 @@ back_after_join:
 				// todo restore vars!
 				char *lsave = getvar("l", 0, 1);
 				char *rsave = getvar("r", 0, 1);
-//				char *Lsave = getvar("L", 0, 1);
-//				char *Rsave = getvar("R", 0, 1);
                                 
                                 if(lsave) lsave = strdup(lsave);
                                 if(rsave) rsave = strdup(rsave);
- //                               if(Lsave) Lsave = strdup(Lsave);
-  //                              if(Rsave) Rsave = strdup(Rsave);
                                 
 				setvar("l", 0, 1, command, token_starts[0], token_lengths[0]);
 				setvar("r", 0, 1, command, token_starts[2], token_lengths[2]);
-  //                              delvar("L"); // todo should not be made up unless existed already
-  //                              delvar("R");
 				char *oper = getoper(command, token_starts[1], token_lengths[1]);
 				ret = evaluate(oper, 0, strlen(oper));
-//                                char *newl = getvar("L", 0, 1);
- //                               char *newr = getvar("R", 0, 1);
 				if(lsave) {
 					setvar("l", 0, 1, lsave, 0, strlen(lsave));
 					free(lsave);
@@ -746,21 +751,6 @@ back_after_join:
 					setvar("r", 0, 1, rsave, 0, strlen(rsave));
 					free(rsave);
 				}
-/*				if(Lsave) {
-					setvar("L", 0, 1, Lsave, 0, strlen(lsave));
-					free(Lsave);
-				}
-				if(Rsave) {
-					setvar("R", 0, 1, Rsave, 0, strlen(rsave));
-					free(Rsave);
-				}*/
-   /*                             if(newl && *newl) {
-					setvar(command, token_starts[0], token_lengths[0], newl, 0, strlen(newl));
-                                }
-                                if(newr && *newr) {
-					setvar(command, token_starts[2], token_lengths[2], newr, 0, strlen(newr));
-                                } */
-                                
 			}
 		}
 		break;
