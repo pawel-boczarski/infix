@@ -42,3 +42,5 @@ a swp b
 n=0,(n-10)|(q=n*n,(n."^2 = ".q)>,n=n+1)
 -> displays squares of 0, ... ,n in form "a^2 = b", one per line
 
+
+a=1,(a-9)|((((10^a-1)/9)^2)>,a=a+1)

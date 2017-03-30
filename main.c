@@ -302,8 +302,10 @@ void operator_priority(char *command, int no_tokens, int *token_starts, int *tok
 				(*oper_prio)[i] = 500;
 			else if(command[token_starts[i]] == '[' || command[token_starts[i]] == ']')
 				(*oper_prio)[i] = 500;
-			else if(command[token_starts[i]] == '*' || command[token_starts[i]] == '/' || command[token_starts[i]] == '%')
+			else if(command[token_starts[i]] == '^')
 				(*oper_prio)[i] = 500;
+			else if(command[token_starts[i]] == '*' || command[token_starts[i]] == '/' || command[token_starts[i]] == '%')
+				(*oper_prio)[i] = 450;
 			else if(command[token_starts[i]] == '+' || command[token_starts[i]] == '-')
 				(*oper_prio)[i] = 400;
 			else if(command[token_starts[i]] == '<' || command[token_starts[i]] == '>')
@@ -711,15 +713,34 @@ back_after_join:
 
 				ret = strdup(_resbuf);
 			}
-			else if(token_lengths[1]==1 && command[token_starts[1]] == '<')
+			else if(token_lengths[1]==1 && command[token_starts[1]] == '%')
 			{
 				char *le = evaluate(command, token_starts[0], token_lengths[0]);
 				char *re = evaluate(command, token_starts[2], token_lengths[2]);
 
-				if(atoi(le) < atoi(re))
-					ret = strdup("1");
-				else
-					ret = strdup("0");
+				int res = atoi(le) % atoi(re);
+				char _resbuf[16];
+				sprintf(_resbuf, "%d", res);
+
+				ret = strdup(_resbuf);
+			}
+			else if(token_lengths[1]==1 && command[token_starts[1]] == '^')
+			{
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+				char *re = evaluate(command, token_starts[2], token_lengths[2]);
+                                
+                                int res = 1;
+                                int mod = atoi(le);
+                                int exp = atoi(re);
+                                while(exp--) {
+                                    res *= mod;
+                                }
+
+                                char _resbuf[16];
+				sprintf(_resbuf, "%d", res);
+                                
+                                ret = strdup(_resbuf);
+
 			}
 			else if(token_lengths[1]==1 && command[token_starts[1]] == '>')
 			{
