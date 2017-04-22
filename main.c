@@ -217,7 +217,7 @@ void parse(char *command, int start, int len, int *no_tokens, int **token_starts
 		if( (
 				(!sub_started && !double_quote_scope)
 				&& (   (isalpha(this_char) && !isalpha(last_char))
-				   || (isdigit(this_char) && !isdigit(last_char))
+				   || (isdigit(this_char) && !isdigit(last_char) && !isalpha(last_char))
 				   || (!isalpha(this_char) && !isdigit(this_char))
                                    
 				)
@@ -294,7 +294,7 @@ void operator_priority(char *command, int no_tokens, int *token_starts, int *tok
 			(*oper_prio)[i] = 1e9;
 		else
 		{
-			if(command[token_starts[i]] == '|' || command[token_starts[i]] == '?')
+			if(command[token_starts[i]] == '`' || command[token_starts[i]] == '?')
 				(*oper_prio)[i] = 1000;
 			else if(command[token_starts[i]] == '=' || command[token_starts[i]] == ':' || command[token_starts[i]] == '!')
 				(*oper_prio)[i] = 100;
@@ -571,7 +571,7 @@ back_after_join:
 				ret[token_lengths[2]] = '\0';
 			}
 			else
-			if(token_lengths[1]==1 && command[token_starts[1]] == '|')
+			if(token_lengths[1]==1 && command[token_starts[1]] == '`')
 			{
 				in_loop = 1;
 				for(;;)
@@ -582,6 +582,30 @@ back_after_join:
 					free(le);
 					
 					if(!true_val || loop_exit_requested)
+					{
+						ret = strdup("");
+						break;
+					}
+					else
+					{
+						ret = evaluate(command, token_starts[2], token_lengths[2]);
+					}
+
+				}
+				in_loop = 0;
+				loop_exit_requested = 0;
+			}
+			else if(token_lengths[1]==1 && command[token_starts[1]] == '#')
+			{
+				in_loop = 1;
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+                                int no_rep = atoi(le);
+                                free(le);
+                                
+				for(int i = 0; i < no_rep; i++)
+				{
+					free(ret);
+					if(loop_exit_requested)
 					{
 						ret = strdup("");
 						break;
@@ -713,17 +737,6 @@ back_after_join:
 
 				ret = strdup(_resbuf);
 			}
-			else if(token_lengths[1]==1 && command[token_starts[1]] == '%')
-			{
-				char *le = evaluate(command, token_starts[0], token_lengths[0]);
-				char *re = evaluate(command, token_starts[2], token_lengths[2]);
-
-				int res = atoi(le) % atoi(re);
-				char _resbuf[16];
-				sprintf(_resbuf, "%d", res);
-
-				ret = strdup(_resbuf);
-			}
 			else if(token_lengths[1]==1 && command[token_starts[1]] == '^')
 			{
 				char *le = evaluate(command, token_starts[0], token_lengths[0]);
@@ -748,6 +761,16 @@ back_after_join:
 				char *re = evaluate(command, token_starts[2], token_lengths[2]);
 
 				if(atoi(le) > atoi(re))
+					ret = strdup("1");
+				else
+					ret = strdup("0");
+			}
+			else if(token_lengths[1]==1 && command[token_starts[1]] == '<')
+			{
+				char *le = evaluate(command, token_starts[0], token_lengths[0]);
+				char *re = evaluate(command, token_starts[2], token_lengths[2]);
+
+				if(atoi(le) < atoi(re))
 					ret = strdup("1");
 				else
 					ret = strdup("0");
