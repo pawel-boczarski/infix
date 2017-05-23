@@ -23,20 +23,14 @@ a=12,b=36,(a<b)?(c=a,a=b,b=c),(b>1)`(a=a%b,c=a,a=b,b=c),a
 
 gcd:((l<r)?(c=l,l=r,r=c),(r>1)`(l=l%r,c=l,l=r,r=c),l)
 12 gcd 36
--> computes greatest common divisor for 12 and 36 (won't work with variables)
-
-gcd:(l=l*,r=r*,(l<r)?(c=l,l=r,r=c),(r>1)`(l=l%r,c=l,l=r,r=c),l)
-a gcd b
--> the version of the previous function that also works when variables given as args
-
-(uses '*' indirection operator)
+-> computes greatest common divisor for 12 and 36
 
 zeroboth:(l!0,r!0)
--> zeroes both variables given as arguments
+-> zeroes both variables given as arguments - no-eval operator necessary
+-> use: (a') zeroboth (b')
 
 swp:(c=l*,l!r*,r!c)
-a swp b
--> swaps a and b variables (uses '!' operator, that evaluates left side and then assigns)
+(a') swp (b') -> swaps a and b variables (uses '!' operator, that evaluates left side and then assigns)
 
 n=0,(n-10)`(q=n*n,(n."^2 = ".q)>,n=n+1)
 n=0,(n-10)`(q=n*n,(n."^2 = ".q)>,n=n+1)
@@ -50,3 +44,4 @@ n<,m=0,(m<n)`(q<,(a.m)!q,m=m+1)
 
 sort2:((l*>r*)?(c=l*,l!r*,r!c))
 -> swaps a and b variables, if a < b
+-> use: (a') sort2 (b') - no-eval operator necessary

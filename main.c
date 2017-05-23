@@ -510,7 +510,9 @@ back_after_join:
                                 
                                 if(asave) asave = strdup(asave);
                                 
-				setvar("a", 0, 1, command, token_starts[0], token_lengths[0]);
+				char *aval = evaluate(command, token_starts[0], token_lengths[0]);
+				setvar("a", 0, 1, aval, 0, strlen(aval));
+				free(aval);
 				char *oper = getoper(command, token_starts[1], token_lengths[1]);
 				ret = evaluate(oper, 0, strlen(oper));
 				if(asave) {
@@ -783,8 +785,12 @@ back_after_join:
                                 if(lsave) lsave = strdup(lsave);
                                 if(rsave) rsave = strdup(rsave);
                                 
-				setvar("l", 0, 1, command, token_starts[0], token_lengths[0]);
-				setvar("r", 0, 1, command, token_starts[2], token_lengths[2]);
+				char *lval = evaluate(command, token_starts[0], token_lengths[0]);
+				char *rval = evaluate(command, token_starts[2], token_lengths[2]);
+				setvar("l", 0, 1, lval, 0, strlen(lval));
+				setvar("r", 0, 1, rval, 0, strlen(rval));
+				free(lval);
+				free(rval);
 				char *oper = getoper(command, token_starts[1], token_lengths[1]);
 				ret = evaluate(oper, 0, strlen(oper));
 				if(lsave) {
