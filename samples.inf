@@ -1,22 +1,22 @@
 (2+4)/5
 -> computes the given expression
 
-n=100,a=0,n`(a=a+n,n=n-1),a
+n=100,a=0,n`(a=a+n,n-),a
 -> computes 100th triangle number (use of '' loop operator)
 
-(a%2)~?(a=a+1)
+(a%2)~?(a+)
 -> rounds a to nearest even number (use of '~' negation and '?' conditional operator)
 
 n=77,r=1,d=n-1,(r*d)`(r=n%d,d=d-1),d+1
 -> find biggest divisor of 77 less than 77
 
-a=60,d=a-1,r=1,(a-1)`(q=a,(a%d)~?(d>,a=a/d),d=d-1)
+a=60,d=a-1,r=1,(a-1)`(q=a,(a%d)~?(d>,a=a/d),d-)
 -> splits 60 into at least two factors
 
-a=797,d=2,(a-1)`((a%d)~`(d>,a=a/d),d=d+1)
+a=797,d=2,(a-1)`((a%d)~`(d>,a=a/d),d+)
 -> factors a
 
-factor:(d=2,(a-1)`((a%d)~`(d>,a=a/d),d=d+1))
+factor:(d=2,(a-1)`((a%d)~`(d>,a=a/d),d+))
 
 a=12,b=36,(a<b)?(c=a,a=b,b=c),(b>1)`(a=a%b,c=a,a=b,b=c),a
 -> computes greatest common divisor of 12 and 36
@@ -32,16 +32,18 @@ zeroboth:(l!0,r!0)
 swp:(c=l*,l!r*,r!c)
 (a') swp (b') -> swaps a and b variables (uses '!' operator, that evaluates left side and then assigns)
 
-n=0,(n-10)`(q=n*n,(n."^2 = ".q)>,n=n+1)
-n=0,(n-10)`(q=n*n,(n."^2 = ".q)>,n=n+1)
+n=0,(n-10)`(q=n*n,(n."^2 = ".q)>,n+)
 -> displays squares of 0, ... ,n in form "a^2 = b", one per line
 
-c=0,(c-10)`(b="*",a=0,(a-c)`(b=b."*",a=a+1),c=c+1,b>)
+c=0,(c-10)`(b="*",a=0,(a-c)`(b=b."*",a+),c+,b>)
 -> displays a "christmas tree" of stars
 
-n<,m=0,(m<n)`(q<,(a.m)!q,m=m+1)
+n<,m=0,(m<n)`(q<,(a'.m)!q,m+)
 -> reads in number of numbers, and then the numbers into variables named a0, ..., an-1
 
 sort2:((l*>r*)?(c=l*,l!r*,r!c))
 -> swaps a and b variables, if a < b
 -> use: (a') sort2 (b') - no-eval operator necessary
+
+n=2,(n<100)`(k=2,p=1,(k>n/2)~`(((n%k)~?(p=0)),k+),p?(n>),n+)
+-> displays primes less than 100

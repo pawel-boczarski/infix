@@ -139,7 +139,7 @@ char *getvar(const char *name, int name_start, int name_len)
 }
 
 char *getoper(const char *name, int name_start, int name_len)
-{
+{    
 	for(int i = 0; i < opers.no; i++)
 		if(   strlen(opers.namevalue_pairs[i].name) == name_len
 		   && memcmp(opers.namevalue_pairs[i].name, name+name_start, name_len) == 0) {
@@ -479,6 +479,28 @@ back_after_join:
 				char *le = evaluate(command, token_starts[0], token_lengths[0]);
 				char buf[16];
 				sprintf(buf, "%d", strlen(le));
+				ret = strdup(buf);
+			}
+			else if(token_lengths[1]==1 && command[token_starts[1]] == '+')
+			{
+				char *value = getvar(command, token_starts[0], token_lengths[0]);
+				int val = atoi(value);
+				
+				char buf[16];
+				sprintf(buf, "%d", val+1);
+				
+				setvar(command, token_starts[0], token_lengths[0], buf, 0, strlen(buf));
+				ret = strdup(buf);
+			}
+			else if(token_lengths[1]==1 && command[token_starts[1]] == '-')
+			{
+				char *value = getvar(command, token_starts[0], token_lengths[0]);
+				int val = atoi(value);
+				
+				char buf[16];
+				sprintf(buf, "%d", val-1);
+				
+				setvar(command, token_starts[0], token_lengths[0], buf, 0, strlen(buf));
 				ret = strdup(buf);
 			}
 			else if(token_lengths[1]==1 && command[token_starts[1]] == '*')
